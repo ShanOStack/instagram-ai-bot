@@ -110,49 +110,7 @@ def login_instagram():
     """Log in to Instagram and save session."""
     from instagrapi import Client
 
-    global INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD
-    if not INSTAGRAM_USERNAME or not INSTAGRAM_PASSWORD:
-        print("\n==================================================")
-        print("     Instagram Login Details Needed")
-        print("==================================================")
-        if not INSTAGRAM_USERNAME:
-            INSTAGRAM_USERNAME = input("Enter your Instagram Username: ").strip()
-        if not INSTAGRAM_PASSWORD:
-            import getpass
-            INSTAGRAM_PASSWORD = getpass.getpass("Enter your Instagram Password (hidden): ").strip()
-
-        # Save to .env
-        if INSTAGRAM_USERNAME and INSTAGRAM_PASSWORD:
-            try:
-                lines = []
-                if ENV_PATH.exists():
-                    with open(ENV_PATH, "r", encoding="utf-8") as f:
-                        lines = f.readlines()
-                new_lines = []
-                has_user = False
-                has_pass = False
-                for line in lines:
-                    if line.startswith("INSTAGRAM_USERNAME="):
-                        new_lines.append(f"INSTAGRAM_USERNAME={INSTAGRAM_USERNAME}\n")
-                        has_user = True
-                    elif line.startswith("INSTAGRAM_PASSWORD="):
-                        new_lines.append(f"INSTAGRAM_PASSWORD={INSTAGRAM_PASSWORD}\n")
-                        has_pass = True
-                    else:
-                        new_lines.append(line)
-                if not has_user:
-                    new_lines.insert(0, f"INSTAGRAM_USERNAME={INSTAGRAM_USERNAME}\n")
-                if not has_pass:
-                    new_lines.insert(1, f"INSTAGRAM_PASSWORD={INSTAGRAM_PASSWORD}\n")
-                with open(ENV_PATH, "w", encoding="utf-8") as f:
-                    f.writelines(new_lines)
-                print(f"[+] Credentials saved to .env!\n")
-            except Exception as e:
-                logger.warning(f"Could not save to .env: {e}")
-
-    if not INSTAGRAM_USERNAME or not INSTAGRAM_PASSWORD:
-        print("\n[!] Username and Password cannot be empty!\n")
-        sys.exit(1)
+    global INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD, INSTAGRAM_SESSIONID
 
     cl = Client()
     # Randomize device settings slightly to appear natural
@@ -170,7 +128,6 @@ def login_instagram():
             logger.warning(f"Existing session invalid ({e}). Refreshing...")
 
     # 2. Try sessionid cookie if provided
-    global INSTAGRAM_SESSIONID
     if INSTAGRAM_SESSIONID:
         logger.info("Logging in using Instagram sessionid cookie...")
         try:
@@ -181,7 +138,26 @@ def login_instagram():
         except Exception as e:
             logger.warning(f"Sessionid login failed ({e}). Falling back to username/password...")
 
-    # 3. Try standard login
+    # 3. Only if sessionid failed or not provided, check username/password
+    if not INSTAGRAM_USERNAME or not INSTAGRAM_PASSWORD:
+        if sys.stdin and sys.stdin.isatty():
+            print("\n==================================================")
+            print("     Instagram Login Details Needed")
+            print("==================================================")
+            if not INSTAGRAM_USERNAME:
+                INSTAGRAM_USERNAME = input("Enter your Instagram Username: ").strip()
+            if not INSTAGRAM_PASSWORD:
+                import getpass
+                INSTAGRAM_PASSWORD = getpass.getpass("Enter your Instagram Password (hidden): ").strip()
+        else:
+            logger.error("No valid sessionid or password provided in environment variables!")
+            sys.exit(1)
+
+    if not INSTAGRAM_USERNAME or not INSTAGRAM_PASSWORD:
+        logger.error("Username and Password cannot be empty!")
+        sys.exit(1)
+
+    # 4. Standard login
     logger.info(f"Logging in as @{INSTAGRAM_USERNAME}...")
     try:
         cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
